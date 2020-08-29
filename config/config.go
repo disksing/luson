@@ -14,8 +14,8 @@ var defaultAccess = flag.String("default-access", "protected", "public/protected
 
 const (
 	Public    string = "public"    // everyone can read/write
-	Protected        = "protected" // everyone can read, write with api key
-	Private          = "private"   // read/write with api key
+	Protected string = "protected" // everyone can read, write with api key
+	Private   string = "private"   // read/write with api key
 )
 
 func ValidateAccess(s string) bool {
