@@ -33,7 +33,7 @@ func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 	ctx := newCtx(w, r)
 
 	if js.conf.DefaultAccess != config.Public && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusForbidden, "")
+		ctx.text(http.StatusUnauthorized, "")
 		return
 	}
 
@@ -60,12 +60,10 @@ func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 		ctx.json(http.StatusInternalServerError, err.Error())
 		return
 	}
-	if len(b) > 0 {
-		err = js.jstore.Put(id, v)
-		if err != nil {
-			ctx.json(http.StatusInternalServerError, err.Error())
-			return
-		}
+	err = js.jstore.Put(id, v)
+	if err != nil {
+		ctx.json(http.StatusInternalServerError, err.Error())
+		return
 	}
 	ctx.text(http.StatusCreated, id)
 }

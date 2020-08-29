@@ -14,7 +14,6 @@ import (
 	"github.com/disksing/luson/util"
 	"github.com/gorilla/mux"
 	"go.uber.org/dig"
-	"go.uber.org/zap"
 )
 
 type Env struct {
@@ -36,16 +35,19 @@ func NewEnv() (*Env, error) {
 	_ = c.Provide(service.NewRouter)
 
 	env := &Env{}
-	err := c.Invoke(func(conf *config.Config, router *mux.Router, logger *zap.SugaredLogger) error {
+	err := c.Invoke(func(conf *config.Config, router *mux.Router) error {
 		env.Conf = conf
 		env.dataDir = conf.DataDir
-		lis, err := net.Listen("tcp", ":0")
+		lis, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
 			return err
 		}
 		env.addr = lis.Addr().String()
 		server := &http.Server{Handler: router}
-		go logger.Debug(server.Serve(lis))
+		go func() {
+			_ = server.Serve(lis)
+		}()
+		env.server = server
 		return nil
 	})
 	if err != nil {

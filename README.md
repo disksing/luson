@@ -4,8 +4,6 @@ luson is a self-hosted JSON API server.
 
 ## Examples
 
-NOTE: Remember to replace following `${YOURHOST}` with real host (usually `localhost:42195`), `${KEY}`s with real API key, and `${ID}`s with real JSON id.
-
 ### Create
 
 - Create JSON entry with content
