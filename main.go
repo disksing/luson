@@ -8,6 +8,7 @@ import (
 	"github.com/disksing/luson/key"
 	"github.com/disksing/luson/metastore"
 	"github.com/disksing/luson/service"
+	"github.com/disksing/luson/util"
 	"github.com/gorilla/mux"
 	"go.uber.org/dig"
 	"go.uber.org/zap"
@@ -15,25 +16,18 @@ import (
 
 func main() {
 	c := dig.New()
-	c.Provide(config.NewConfig)
-	c.Provide(newLogger)
-	c.Provide(config.NewDataDir)
-	c.Provide(key.NewAPIKey)
-	c.Provide(metastore.NewStore)
-	c.Provide(jsonstore.NewStore)
-	c.Provide(service.NewJServer)
-	c.Provide(service.NewRouter)
-	if err := c.Invoke(start); err != nil {
-		newLogger().Info("failed to start", err)
-	}
-}
-
-func newLogger() *zap.SugaredLogger {
-	p, _ := zap.NewDevelopment()
-	return p.Sugar()
+	_ = c.Provide(config.NewConfig)
+	_ = c.Provide(util.NewLogger)
+	_ = c.Provide(config.NewDataDir)
+	_ = c.Provide(key.NewAPIKey)
+	_ = c.Provide(metastore.NewStore)
+	_ = c.Provide(jsonstore.NewStore)
+	_ = c.Provide(service.NewJServer)
+	_ = c.Provide(service.NewRouter)
+	_ = c.Invoke(start)
 }
 
 func start(logger *zap.SugaredLogger, router *mux.Router) {
 	logger.Info("ready to start")
-	http.ListenAndServe(":42195", router)
+	logger.Error(http.ListenAndServe(":42195", router))
 }
