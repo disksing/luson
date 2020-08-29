@@ -67,7 +67,7 @@ func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
 		ctx.text(http.StatusInternalServerError, err.Error())
 		return
 	}
-	w.Header().Add("ETag", hash)
+	ctx.w.Header().Add("ETag", hash)
 	ctx.json(http.StatusOK, v)
 }
 
