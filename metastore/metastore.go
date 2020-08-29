@@ -57,7 +57,7 @@ func (s *Store) Get(id string) (*MetaData, error) {
 		return e.Value.(*MetaData), nil
 	}
 	m, err := s.load(id)
-	if err != nil {
+	if err != nil || m == nil {
 		return nil, err
 	}
 	s.in(m)
@@ -103,7 +103,10 @@ func (s *Store) out(e *list.Element) {
 }
 
 func (s *Store) load(id string) (*MetaData, error) {
-	f, err := os.OpenFile(s.fname(id), os.O_RDONLY|os.O_CREATE, 0644)
+	f, err := os.OpenFile(s.fname(id), os.O_RDONLY, 0644)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}

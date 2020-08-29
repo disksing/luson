@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/disksing/luson/key"
 	"github.com/unrolled/render"
 )
 
@@ -44,4 +45,8 @@ func readJSON(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 		return nil, err
 	}
 	return v, nil
+}
+
+func checkAPIKey(r *http.Request, apiKey key.APIKey) bool {
+	return r.Header.Get("Authorization") == "Token "+string(apiKey)
 }
