@@ -37,10 +37,35 @@ func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	b, err := ctx.readBody()
+	if err != nil {
+		return
+	}
+
+	var v interface{}
+	if len(b) > 0 {
+		v, err = ctx.parseJSON(b)
+		if err != nil {
+			return
+		}
+	}
+
 	id, err := js.mstore.Create()
 	if err != nil {
 		ctx.json(http.StatusInternalServerError, err.Error())
 		return
+	}
+	err = js.mstore.Put(&metastore.MetaData{ID: id, Access: js.conf.DefaultAccess})
+	if err != nil {
+		ctx.json(http.StatusInternalServerError, err.Error())
+		return
+	}
+	if len(b) > 0 {
+		err = js.jstore.Put(id, v)
+		if err != nil {
+			ctx.json(http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 	ctx.text(http.StatusCreated, id)
 }
