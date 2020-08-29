@@ -10,19 +10,37 @@ import (
 var dataDir = flag.String("data-dir", "data", "data directory")
 var jsonCache = flag.Int("json-cache", 100, "json cache size, default 100M")
 var metaCache = flag.Int("meta-cache", 1024, "meta cache limit, default 1024")
+var defaultAccess = flag.String("default-access", "protected", "public/protected/private")
+
+const (
+	Public    string = "public"    // everyone can read/write
+	Protected        = "protected" // everyone can read, write with api key
+	Private          = "private"   // read/write with api key
+)
+
+func ValidateAccess(s string) bool {
+	return s == Public || s == Protected || s == Private
+}
 
 type Config struct {
 	DataDir       string
 	JSONCacheSize int
 	MetaCacheSize int
+	DefaultAccess string
 }
 
 func NewConfig() *Config {
 	flag.Parse()
+
+	if !ValidateAccess(*defaultAccess) {
+		*defaultAccess = Protected
+	}
+
 	return &Config{
 		DataDir:       *dataDir,
 		JSONCacheSize: *jsonCache,
 		MetaCacheSize: *metaCache,
+		DefaultAccess: *defaultAccess,
 	}
 }
 

@@ -3,6 +3,7 @@ package service
 import (
 	"net/http"
 
+	"github.com/disksing/luson/config"
 	"github.com/disksing/luson/jsonstore"
 	"github.com/disksing/luson/key"
 	"github.com/disksing/luson/metastore"
@@ -14,14 +15,16 @@ type JServer struct {
 	logger *zap.SugaredLogger
 	mstore *metastore.Store
 	jstore *jsonstore.Store
+	conf   *config.Config
 	apiKey key.APIKey
 }
 
-func NewJServer(mstore *metastore.Store, jstore *jsonstore.Store, apiKey key.APIKey, logger *zap.SugaredLogger) *JServer {
+func NewJServer(mstore *metastore.Store, jstore *jsonstore.Store, apiKey key.APIKey, conf *config.Config, logger *zap.SugaredLogger) *JServer {
 	return &JServer{
 		logger: logger,
 		mstore: mstore,
 		jstore: jstore,
+		conf:   conf,
 		apiKey: apiKey,
 	}
 }
@@ -38,7 +41,7 @@ func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	err = js.mstore.Put(&metastore.MetaData{
 		ID:     id,
-		Access: metastore.Protected,
+		Access: js.conf.DefaultAccess,
 	})
 	if err != nil {
 		response(r).JSON(w, http.StatusInternalServerError, err.Error())
@@ -63,7 +66,7 @@ func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
 		response(r).Text(w, http.StatusNotFound, "")
 		return
 	}
-	if mdata.Access == metastore.Private && !checkAPIKey(r, js.apiKey) {
+	if mdata.Access == config.Private && !checkAPIKey(r, js.apiKey) {
 		response(r).Text(w, http.StatusNotFound, "")
 		return
 	}
@@ -91,11 +94,11 @@ func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 		response(r).Text(w, http.StatusNotFound, "")
 		return
 	}
-	if mdata.Access == metastore.Private && !checkAPIKey(r, js.apiKey) {
+	if mdata.Access == config.Private && !checkAPIKey(r, js.apiKey) {
 		response(r).Text(w, http.StatusNotFound, "")
 		return
 	}
-	if mdata.Access == metastore.Protected && !checkAPIKey(r, js.apiKey) {
+	if mdata.Access == config.Protected && !checkAPIKey(r, js.apiKey) {
 		response(r).Text(w, http.StatusForbidden, "")
 		return
 	}

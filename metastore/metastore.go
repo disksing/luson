@@ -71,7 +71,7 @@ func (s *Store) Put(m *MetaData) error {
 	if !util.IsUUID(m.ID) {
 		return errors.Errorf("id is invalid")
 	}
-	if !validAccess(m.Access) {
+	if !config.ValidateAccess(m.Access) {
 		return errors.Errorf("access is invalid")
 	}
 	if e, ok := s.cache[m.ID]; ok {
@@ -119,8 +119,8 @@ func (s *Store) load(id string) (*MetaData, error) {
 	if err = json.Unmarshal(b, &v); err != nil {
 		return nil, err
 	}
-	if !validAccess(v.Access) {
-		v.Access = Private
+	if !config.ValidateAccess(v.Access) {
+		v.Access = config.Private
 	}
 	return &v, nil
 }
@@ -135,16 +135,6 @@ func (s *Store) save(m *MetaData) error {
 
 func (s *Store) fname(id string) string {
 	return filepath.Join(s.dataDir, id, "meta.json")
-}
-
-const (
-	Public    string = "public"    // everyone can read/write
-	Protected        = "protected" // everyone can read, write with api key
-	Private          = "private"   // read/write with api key
-)
-
-func validAccess(s string) bool {
-	return s == Public || s == Protected || s == Private
 }
 
 type MetaData struct {
