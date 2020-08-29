@@ -30,82 +30,76 @@ func NewJServer(mstore *metastore.Store, jstore *jsonstore.Store, apiKey key.API
 }
 
 func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
-	if !checkAPIKey(r, js.apiKey) {
-		response(r).Text(w, http.StatusForbidden, "")
+	ctx := newCtx(w, r)
+
+	if js.conf.DefaultAccess != config.Public && !ctx.checkAPIKey(js.apiKey) {
+		ctx.text(http.StatusForbidden, "")
 		return
 	}
+
 	id, err := js.mstore.Create()
 	if err != nil {
-		response(r).JSON(w, http.StatusInternalServerError, err.Error())
+		ctx.json(http.StatusInternalServerError, err.Error())
 		return
 	}
-	err = js.mstore.Put(&metastore.MetaData{
-		ID:     id,
-		Access: js.conf.DefaultAccess,
-	})
-	if err != nil {
-		response(r).JSON(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	err = js.jstore.Put(id, nil)
-	if err != nil {
-		response(r).JSON(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	response(r).Text(w, http.StatusCreated, id)
+	ctx.text(http.StatusCreated, id)
 }
 
 func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
+	ctx := newCtx(w, r)
+
 	id := mux.Vars(r)["id"]
 	mdata, err := js.mstore.Get(id)
 	if err != nil {
-		response(r).Text(w, http.StatusInternalServerError, err.Error())
+		ctx.text(http.StatusInternalServerError, err.Error())
 		return
 	}
 	if mdata == nil {
-		response(r).Text(w, http.StatusNotFound, "")
+		ctx.text(http.StatusNotFound, "")
 		return
 	}
-	if mdata.Access == config.Private && !checkAPIKey(r, js.apiKey) {
-		response(r).Text(w, http.StatusNotFound, "")
+	if mdata.Access == config.Private && !ctx.checkAPIKey(js.apiKey) {
+		ctx.text(http.StatusNotFound, "")
 		return
 	}
 	v, hash, err := js.jstore.Get(id)
 	if err != nil {
-		response(r).Text(w, http.StatusInternalServerError, err.Error())
+		ctx.text(http.StatusInternalServerError, err.Error())
 		return
 	}
 	w.Header().Add("ETag", hash)
-	response(r).JSON(w, http.StatusOK, v)
+	ctx.json(http.StatusOK, v)
 }
 
 func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
+	ctx := newCtx(w, r)
+
 	id := mux.Vars(r)["id"]
-	v, err := readJSON(w, r)
+	v, err := ctx.readJSON()
 	if err != nil {
 		return
 	}
 	mdata, err := js.mstore.Get(id)
 	if err != nil {
-		response(r).Text(w, http.StatusInternalServerError, err.Error())
+		ctx.text(http.StatusInternalServerError, err.Error())
 		return
 	}
 	if mdata == nil {
-		response(r).Text(w, http.StatusNotFound, "")
+		ctx.text(http.StatusNotFound, "")
 		return
 	}
-	if mdata.Access == config.Private && !checkAPIKey(r, js.apiKey) {
-		response(r).Text(w, http.StatusNotFound, "")
+	if mdata.Access == config.Private && !ctx.checkAPIKey(js.apiKey) {
+		ctx.text(http.StatusNotFound, "")
 		return
 	}
-	if mdata.Access == config.Protected && !checkAPIKey(r, js.apiKey) {
-		response(r).Text(w, http.StatusForbidden, "")
+	if mdata.Access == config.Protected && !ctx.checkAPIKey(js.apiKey) {
+		ctx.text(http.StatusForbidden, "")
 		return
 	}
 	err = js.jstore.Put(id, v)
 	if err != nil {
-		response(r).Text(w, http.StatusInternalServerError, err.Error())
+		ctx.text(http.StatusInternalServerError, err.Error())
 		return
 	}
-	response(r).Text(w, http.StatusOK, "updated")
+	ctx.text(http.StatusOK, "updated")
 }
