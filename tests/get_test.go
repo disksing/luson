@@ -63,4 +63,8 @@ func TestGet(t *testing.T) {
 	r.Nil(err)
 	r.Equal(partial.Status, http.StatusOK)
 	r.Equal(partial.RawContent, `{"language":"Go"}`)
+
+	partial, err = env.at("/" + id + "/loveFrom/9").get()
+	r.Nil(err)
+	r.Equal(partial.Status, http.StatusNotAcceptable)
 }
