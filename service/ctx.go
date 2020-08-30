@@ -70,6 +70,7 @@ func (ctx *httpCtx) uriPointer() (string, error) {
 	for i := range splits {
 		s, err := url.PathUnescape(splits[i])
 		if err != nil {
+			ctx.text(http.StatusBadRequest, err.Error())
 			return "", err
 		}
 		splits[i] = "/" + strings.NewReplacer("~", "~0", "/", "~1").Replace(s)

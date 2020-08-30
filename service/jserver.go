@@ -93,7 +93,6 @@ func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := ctx.uriPointer()
 	if err != nil {
-		ctx.text(http.StatusBadRequest, err.Error())
 		return
 	}
 	v, err = jsonp.Get(v, p)
@@ -134,7 +133,6 @@ func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 
 	p, err := ctx.uriPointer()
 	if err != nil {
-		ctx.text(http.StatusBadRequest, err.Error())
 		return
 	}
 	var old interface{}
