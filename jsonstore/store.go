@@ -153,6 +153,6 @@ func (s *Store) fname(id string) string {
 
 func (s *Store) sha1(b []byte) string {
 	sh := sha1.New()
-	sh.Write(b)
+	_, _ = sh.Write(b)
 	return hex.EncodeToString(sh.Sum(nil)[:8])
 }
