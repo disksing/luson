@@ -53,4 +53,14 @@ func TestGet(t *testing.T) {
 	r.Nil(err)
 	r.Equal(res2.Status, http.StatusOK)
 	r.Equal(res2.RawContent, res.RawContent)
+
+	partial, err := env.at("/" + id + "/loveFrom/1/editor").get()
+	r.Nil(err)
+	r.Equal(partial.Status, http.StatusOK)
+	r.Equal(partial.Value, "vscode")
+
+	partial, err = env.at("/" + id + "/loveFrom/0").get()
+	r.Nil(err)
+	r.Equal(partial.Status, http.StatusOK)
+	r.Equal(partial.RawContent, `{"language":"Go"}`)
 }

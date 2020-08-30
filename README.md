@@ -37,3 +37,13 @@ curl -i "http://${YOURHOST}/${ID}?pretty"
   ]
 }
 ```
+
+- Get partial JSON entry
+
+```
+curl -i "http://${YOURHOST}/${ID}/loveFrom/1/editor"
+# returns partial JSON
+200 OK
+"vscode"
+```
+

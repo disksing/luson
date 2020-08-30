@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/disksing/luson/key"
 	"github.com/unrolled/render"
@@ -61,6 +63,18 @@ func (ctx *httpCtx) readJSON() (interface{}, error) {
 		return nil, err
 	}
 	return v, nil
+}
+
+func (ctx *httpCtx) uriPointer() (string, error) {
+	splits := strings.Split(ctx.r.RequestURI, "/")[2:] // trim /id prefix
+	for i := range splits {
+		s, err := url.PathUnescape(splits[i])
+		if err != nil {
+			return "", err
+		}
+		splits[i] = "/" + strings.NewReplacer("~", "~0", "/", "~1").Replace(s)
+	}
+	return strings.Join(splits, ""), nil
 }
 
 func (ctx *httpCtx) text(status int, v string) {

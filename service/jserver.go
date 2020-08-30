@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/disksing/luson/config"
+	"github.com/disksing/luson/jsonp"
 	"github.com/disksing/luson/jsonstore"
 	"github.com/disksing/luson/key"
 	"github.com/disksing/luson/metastore"
@@ -90,6 +91,17 @@ func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
 		ctx.text(http.StatusInternalServerError, err.Error())
 		return
 	}
+	p, err := ctx.uriPointer()
+	if err != nil {
+		ctx.text(http.StatusBadRequest, err.Error())
+		return
+	}
+	v, err = jsonp.Get(v, p)
+	if err != nil {
+		ctx.text(http.StatusNotAcceptable, err.Error())
+		return
+	}
+
 	ctx.w.Header().Add("ETag", hash)
 	ctx.json(http.StatusOK, v)
 }
