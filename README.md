@@ -47,3 +47,23 @@ curl -i "http://${YOURHOST}/${ID}/loveFrom/1/editor"
 "vscode"
 ```
 
+### Update
+
+- Update full JSON entry
+
+```
+curl -XPUT -H "Authorization:${KEY}" -i "http://${YOURHOST}/${ID}" -d \
+  '{"app": "luson", "version": "v0.1", "loveFrom": [{"language":"Go"}, {"editor":"vscode"}, "GitHub"]}'
+
+200 OK
+```
+
+- Update partial JSON entry
+
+```
+curl -XPUT -H "Authorization:${KEY}" -i "http://${YOURHOST}/${ID}/loveFrom/language" -d \
+  '["Go", "markdown"]'
+
+200 OK
+```
+

@@ -14,7 +14,7 @@ func NewRouter(js *JServer) *mux.Router {
 
 	r.HandleFunc("/", js.Create).Methods("POST")
 	r.PathPrefix("/" + id).HandlerFunc(js.Get).Methods("GET")
-	r.HandleFunc("/"+id, js.Put).Methods("PUT")
+	r.PathPrefix("/" + id).HandlerFunc(js.Put).Methods("PUT")
 
 	return r
 }

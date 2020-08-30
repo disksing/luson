@@ -131,10 +131,34 @@ func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 		ctx.text(http.StatusForbidden, "")
 		return
 	}
+
+	p, err := ctx.uriPointer()
+	if err != nil {
+		ctx.text(http.StatusBadRequest, err.Error())
+		return
+	}
+	var old interface{}
+	var hash string
+	if p != "" {
+		old, hash, err = js.jstore.Get(id)
+		if err != nil {
+			ctx.text(http.StatusInternalServerError, err.Error())
+			return
+		}
+		v, err = jsonp.Replace(old, p, v)
+		if err != nil {
+			ctx.text(http.StatusNotAcceptable, err.Error())
+			return
+		}
+	}
+
 	err = js.jstore.Put(id, v)
 	if err != nil {
 		ctx.text(http.StatusInternalServerError, err.Error())
 		return
 	}
-	ctx.text(http.StatusOK, "updated")
+	if hash != "" {
+		ctx.w.Header().Add("ETag", hash)
+	}
+	ctx.text(http.StatusOK, "")
 }
