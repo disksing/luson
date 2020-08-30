@@ -52,3 +52,30 @@ func TestCreatePublic(t *testing.T) {
 	r.Equal(res.Status, http.StatusCreated)
 	r.True(util.IsUUID(res.RawContent))
 }
+
+func TestCreatePrivate(t *testing.T) {
+	r := require.New(t)
+	env, err := NewEnv()
+	r.Nil(err)
+	defer env.Close()
+	env.Conf.DefaultAccess = config.Private
+
+	res, err := env.at("/").post()
+	r.Nil(err)
+	r.Equal(res.Status, http.StatusUnauthorized)
+
+	res, err = env.at("/").withAuth().post()
+	r.Nil(err)
+	r.Equal(res.Status, http.StatusCreated)
+	r.True(util.IsUUID(res.RawContent))
+
+	id := res.RawContent
+	res, err = env.at("/" + id).get()
+	r.Nil(err)
+	r.Equal(res.Status, http.StatusNotFound)
+
+	res, err = env.at("/" + id).withAuth().get()
+	r.Nil(err)
+	r.Equal(res.Status, http.StatusOK)
+	r.Nil(res.Value)
+}
