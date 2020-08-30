@@ -251,6 +251,7 @@ func Merge(x, v Any) Any {
 				xo[k] = Merge(xo[k], v)
 			}
 		}
+		return xo
 	}
 	return v
 }

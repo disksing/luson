@@ -67,3 +67,24 @@ curl -XPUT -H "Authorization:${KEY}" -i "http://${YOURHOST}/${ID}/loveFrom/langu
 200 OK
 ```
 
+### Patch
+
+- Patch+Merge
+
+More detail see [RFC7386](https://tools.ietf.org/html/rfc7386).
+
+```
+curl -XPATCH -H "Authorization:${KEY}" -i "http://${YOURHOST}/${ID}" -d \
+  '{"author": "disksing", "loveFrom": null}'
+
+200 OK
+```
+
+- Patch+Merge partial entry
+
+```
+curl -XPATCH -H "Authorization:${KEY}" -i "http://${YOURHOST}/${ID}/loveFrom/0" -d \
+  '{"language": ["Go", "markdown"]}'
+
+200 OK
+```

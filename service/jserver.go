@@ -135,9 +135,10 @@ func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	var old interface{}
 	var hash string
 	if p != "" {
+		// TODO: TXN
+		var old interface{}
 		old, hash, err = js.jstore.Get(id)
 		if err != nil {
 			ctx.text(http.StatusInternalServerError, err.Error())
@@ -150,6 +151,65 @@ func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	err = js.jstore.Put(id, v)
+	if err != nil {
+		ctx.text(http.StatusInternalServerError, err.Error())
+		return
+	}
+	if hash != "" {
+		ctx.w.Header().Add("ETag", hash)
+	}
+	ctx.text(http.StatusOK, "")
+}
+
+func (js *JServer) Patch(w http.ResponseWriter, r *http.Request) {
+	ctx := newCtx(w, r)
+
+	// FIXME: same with PUT
+	id := mux.Vars(r)["id"]
+	v, err := ctx.readJSON()
+	if err != nil {
+		return
+	}
+	mdata, err := js.mstore.Get(id)
+	if err != nil {
+		ctx.text(http.StatusInternalServerError, err.Error())
+		return
+	}
+	if mdata == nil {
+		ctx.text(http.StatusNotFound, "")
+		return
+	}
+	if mdata.Access == config.Private && !ctx.checkAPIKey(js.apiKey) {
+		ctx.text(http.StatusNotFound, "")
+		return
+	}
+	if mdata.Access == config.Protected && !ctx.checkAPIKey(js.apiKey) {
+		ctx.text(http.StatusForbidden, "")
+		return
+	}
+
+	// TODO: TXN
+	old, hash, err := js.jstore.Get(id)
+	if err != nil {
+		ctx.text(http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	p, err := ctx.uriPointer()
+	if err != nil {
+		return
+	}
+	sub, err := jsonp.Get(old, p)
+	if err != nil {
+		ctx.text(http.StatusNotAcceptable, err.Error())
+		return
+	}
+	v, err = jsonp.Replace(old, p, jsonp.Merge(sub, v))
+	if err != nil {
+		ctx.text(http.StatusNotAcceptable, err.Error())
+		return
+	}
 	err = js.jstore.Put(id, v)
 	if err != nil {
 		ctx.text(http.StatusInternalServerError, err.Error())
