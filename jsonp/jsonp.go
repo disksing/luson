@@ -9,11 +9,13 @@ import (
 	"github.com/pkg/errors"
 )
 
-// JSON type alias.
 type (
-	Any    = interface{}
+	// Any represents any JSON node.
+	Any = interface{}
+	// Object represents JSON objects.
 	Object = map[string]Any
-	Array  = []Any
+	// Array represents JSON arrays.
+	Array = []Any
 )
 
 // Clone makes a copy of a JSON node.
@@ -35,6 +37,7 @@ func Clone(x Any) Any {
 	return x
 }
 
+// Get returns child node of a node.
 func Get(x Any, pointer string) (Any, error) {
 	t := newTokenizer(pointer)
 	for {
@@ -70,6 +73,7 @@ func getChild(x Any, key string) (Any, error) {
 	return nil, errors.Errorf("node is not array or object")
 }
 
+// Add adds a node to a node by pointer.
 func Add(x Any, pointer string, v Any) (Any, error) {
 	return addRecr(x, newTokenizer(pointer), v)
 }
@@ -111,6 +115,7 @@ func addRecr(x Any, t *tokenizer, v Any) (Any, error) {
 	return nil, errors.Errorf("node is not array or object")
 }
 
+// Remove removes child of a node.
 func Remove(x Any, pointer string) (Any, error) {
 	x, _, err := removeRecr(x, newTokenizer(pointer))
 	return x, err
@@ -156,6 +161,7 @@ func removeRecr(x Any, t *tokenizer) (Any, Any, error) {
 	return nil, nil, errors.Errorf("node is not array or object")
 }
 
+// Replace replaces child of a node with another.
 func Replace(x Any, pointer string, v Any) (Any, error) {
 	return replaceRecr(x, newTokenizer(pointer), v)
 }
@@ -191,6 +197,7 @@ func replaceRecr(x Any, t *tokenizer, v Any) (Any, error) {
 	return nil, errors.Errorf("node is not array or object")
 }
 
+// Move moves a child to another place.
 func Move(x Any, from, to string) (Any, error) {
 	x2, r, err := removeRecr(x, newTokenizer(from))
 	if err != nil {
@@ -199,6 +206,8 @@ func Move(x Any, from, to string) (Any, error) {
 	return Add(x2, to, r)
 }
 
+// Move2 moves a child to another place.
+// The source and target can be different.
 func Move2(x, y Any, from, to string) (Any, Any, error) {
 	x2, r, err := removeRecr(x, newTokenizer(from))
 	if err != nil {
@@ -211,6 +220,7 @@ func Move2(x, y Any, from, to string) (Any, Any, error) {
 	return x2, y2, nil
 }
 
+// Copy copies a child node to another place.
 func Copy(x Any, from, to string) (Any, error) {
 	v, err := Get(x, from)
 	if err != nil {
@@ -219,6 +229,8 @@ func Copy(x Any, from, to string) (Any, error) {
 	return Add(x, to, Clone(v))
 }
 
+// Copy2 copies a child node to another place.
+// The source and target can be different.
 func Copy2(x, y Any, from, to string) (Any, error) {
 	v, err := Get(x, from)
 	if err != nil {
@@ -227,6 +239,7 @@ func Copy2(x, y Any, from, to string) (Any, error) {
 	return Add(y, to, Clone(v))
 }
 
+// Test checks if child matches the node.
 func Test(x Any, pointer string, v Any) error {
 	x, err := Get(x, pointer)
 	if err != nil {
@@ -238,6 +251,7 @@ func Test(x Any, pointer string, v Any) error {
 	return nil
 }
 
+// Merge merges two nodes.
 func Merge(x, v Any) Any {
 	if vo, ok := v.(Object); ok {
 		xo, ok := x.(Object)
