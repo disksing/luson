@@ -33,49 +33,65 @@ func newCtx(w http.ResponseWriter, r *http.Request) *httpCtx {
 	}
 }
 
-func (ctx *httpCtx) readBody() ([]byte, error) {
+func (ctx *httpCtx) readBody() ([]byte, bool) {
 	defer ctx.r.Body.Close()
 	data, err := ioutil.ReadAll(ctx.r.Body)
 	if err != nil {
 		ctx.text(http.StatusInternalServerError, err.Error())
-		return nil, err
+		return nil, false
 	}
-	return data, nil
+	return data, true
 }
 
-func (ctx *httpCtx) parseJSON(data []byte) (interface{}, error) {
+func (ctx *httpCtx) parseJSON(data []byte) (interface{}, bool) {
 	var v interface{}
 	err := json.Unmarshal(data, &v)
 	if err != nil {
 		ctx.text(http.StatusBadRequest, err.Error())
-		return nil, err
+		return nil, false
 	}
-	return v, nil
+	return v, true
 }
 
-func (ctx *httpCtx) readJSON() (interface{}, error) {
-	data, err := ctx.readBody()
-	if err != nil {
-		return nil, err
+func (ctx *httpCtx) readJSON() (interface{}, bool) {
+	data, ok := ctx.readBody()
+	if !ok {
+		return nil, false
 	}
-	v, err := ctx.parseJSON(data)
-	if err != nil {
-		return nil, err
+	v, ok := ctx.parseJSON(data)
+	if !ok {
+		return nil, false
 	}
-	return v, nil
+	return v, true
 }
 
-func (ctx *httpCtx) uriPointer() (string, error) {
+// returns v, empty, ok
+func (ctx *httpCtx) readJSONEx() (interface{}, bool, bool) {
+	data, ok := ctx.readBody()
+	if !ok {
+		return nil, false, false
+	}
+	if len(data) == 0 {
+		return nil, true, true
+	}
+	v, ok := ctx.parseJSON(data)
+	if !ok {
+		return nil, false, false
+	}
+	return v, false, true
+}
+
+func (ctx *httpCtx) uriPointer() (string, bool) {
 	splits := strings.Split(ctx.r.RequestURI, "/")[2:] // trim /id prefix
 	for i := range splits {
 		s, err := url.PathUnescape(splits[i])
 		if err != nil {
 			ctx.text(http.StatusBadRequest, err.Error())
-			return "", err
+			return "", false
 		}
 		splits[i] = "/" + strings.NewReplacer("~", "~0", "/", "~1").Replace(s)
 	}
-	return strings.Join(splits, ""), nil
+	return strings.Join(splits, ""), true
 }
 
 func (ctx *httpCtx) text(status int, v string) {

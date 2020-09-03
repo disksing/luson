@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// NewRouter returns the root HTTP handler.
 func NewRouter(js *JServer) *mux.Router {
 	r := mux.NewRouter()
 

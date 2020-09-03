@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// JServer services JSON data.
 type JServer struct {
 	logger *zap.SugaredLogger
 	mstore *metastore.Store
@@ -20,6 +21,7 @@ type JServer struct {
 	apiKey key.APIKey
 }
 
+// NewJServer creates the JSON service handler.
 func NewJServer(mstore *metastore.Store, jstore *jsonstore.Store, apiKey key.APIKey, conf *config.Config, logger *zap.SugaredLogger) *JServer {
 	return &JServer{
 		logger: logger,
@@ -30,6 +32,7 @@ func NewJServer(mstore *metastore.Store, jstore *jsonstore.Store, apiKey key.API
 	}
 }
 
+// Create handles JSON POST requests.
 func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 	ctx := newCtx(w, r)
 
@@ -38,17 +41,9 @@ func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b, err := ctx.readBody()
-	if err != nil {
+	v, _, ok := ctx.readJSONEx()
+	if !ok {
 		return
-	}
-
-	var v interface{}
-	if len(b) > 0 {
-		v, err = ctx.parseJSON(b)
-		if err != nil {
-			return
-		}
 	}
 
 	id, err := js.mstore.Create()
@@ -69,10 +64,7 @@ func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 	ctx.text(http.StatusCreated, id)
 }
 
-func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
-	ctx := newCtx(w, r)
-
-	id := mux.Vars(r)["id"]
+func (js *JServer) checkMeta(ctx *httpCtx, id string, mut bool) (ok bool) {
 	mdata, err := js.mstore.Get(id)
 	if err != nil {
 		ctx.text(http.StatusInternalServerError, err.Error())
@@ -86,13 +78,37 @@ func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
 		ctx.text(http.StatusNotFound, "")
 		return
 	}
+	if mut && mdata.Access == config.Protected && !ctx.checkAPIKey(js.apiKey) {
+		ctx.text(http.StatusUnauthorized, "")
+		return
+	}
+	return true
+}
+
+func (js *JServer) checkMetaForRead(ctx *httpCtx, id string) bool {
+	return js.checkMeta(ctx, id, false)
+}
+
+func (js *JServer) checkMetaForWrite(ctx *httpCtx, id string) bool {
+	return js.checkMeta(ctx, id, true)
+}
+
+// Get handles JSON GET requests.
+func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
+	ctx := newCtx(w, r)
+	id := mux.Vars(r)["id"]
+
+	if !js.checkMetaForRead(ctx, id) {
+		return
+	}
+
 	v, hash, err := js.jstore.Get(id)
 	if err != nil {
 		ctx.text(http.StatusInternalServerError, err.Error())
 		return
 	}
-	p, err := ctx.uriPointer()
-	if err != nil {
+	p, ok := ctx.uriPointer()
+	if !ok {
 		return
 	}
 	v, err = jsonp.Get(v, p)
@@ -105,40 +121,28 @@ func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
 	ctx.json(http.StatusOK, v)
 }
 
+// Put handles JSON PUT requests.
 func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 	ctx := newCtx(w, r)
-
 	id := mux.Vars(r)["id"]
-	v, err := ctx.readJSON()
-	if err != nil {
+
+	v, ok := ctx.readJSON()
+	if !ok {
 		return
 	}
-	mdata, err := js.mstore.Get(id)
-	if err != nil {
-		ctx.text(http.StatusInternalServerError, err.Error())
-		return
-	}
-	if mdata == nil {
-		ctx.text(http.StatusNotFound, "")
-		return
-	}
-	if mdata.Access == config.Private && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusNotFound, "")
-		return
-	}
-	if mdata.Access == config.Protected && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusForbidden, "")
+	if !js.checkMetaForWrite(ctx, id) {
 		return
 	}
 
-	p, err := ctx.uriPointer()
-	if err != nil {
+	p, ok := ctx.uriPointer()
+	if !ok {
 		return
 	}
 	var hash string
 	if p != "" {
 		// TODO: TXN
 		var old interface{}
+		var err error
 		old, hash, err = js.jstore.Get(id)
 		if err != nil {
 			ctx.text(http.StatusInternalServerError, err.Error())
@@ -151,7 +155,7 @@ func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = js.jstore.Put(id, v)
+	err := js.jstore.Put(id, v)
 	if err != nil {
 		ctx.text(http.StatusInternalServerError, err.Error())
 		return
@@ -162,30 +166,16 @@ func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 	ctx.text(http.StatusOK, "")
 }
 
+// Patch handles JSON PATCH requests.
 func (js *JServer) Patch(w http.ResponseWriter, r *http.Request) {
 	ctx := newCtx(w, r)
 
-	// FIXME: same with PUT
 	id := mux.Vars(r)["id"]
-	v, err := ctx.readJSON()
-	if err != nil {
+	v, ok := ctx.readJSON()
+	if !ok {
 		return
 	}
-	mdata, err := js.mstore.Get(id)
-	if err != nil {
-		ctx.text(http.StatusInternalServerError, err.Error())
-		return
-	}
-	if mdata == nil {
-		ctx.text(http.StatusNotFound, "")
-		return
-	}
-	if mdata.Access == config.Private && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusNotFound, "")
-		return
-	}
-	if mdata.Access == config.Protected && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusForbidden, "")
+	if !js.checkMetaForWrite(ctx, id) {
 		return
 	}
 
@@ -196,8 +186,8 @@ func (js *JServer) Patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p, err := ctx.uriPointer()
-	if err != nil {
+	p, ok := ctx.uriPointer()
+	if !ok {
 		return
 	}
 	sub, err := jsonp.Get(old, p)
