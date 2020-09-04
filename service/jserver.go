@@ -34,7 +34,7 @@ func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 	ctx := newCtx(w, r)
 
 	if js.conf.DefaultAccess != config.Public && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusUnauthorized, "")
+		ctx.statusText(http.StatusUnauthorized)
 		return
 	}
 
@@ -53,19 +53,23 @@ func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 
 	id, err := js.mstore.Create()
 	if err != nil {
-		ctx.json(http.StatusInternalServerError, err.Error())
+		js.logger.Error("failed to create meta", zap.String("cmd", "create"), zap.String("id", id), zap.Error(err))
+		ctx.text(http.StatusInternalServerError, "failed to create meta")
 		return
 	}
 	err = js.mstore.Put(&metastore.MetaData{ID: id, Access: js.conf.DefaultAccess})
 	if err != nil {
-		ctx.json(http.StatusInternalServerError, err.Error())
+		js.logger.Error("failed to put meta", zap.String("cmd", "create"), zap.String("id", id), zap.Error(err))
+		ctx.text(http.StatusInternalServerError, "failed to write meta")
 		return
 	}
 	err = js.jstore.Put(id, v)
 	if err != nil {
-		ctx.json(http.StatusInternalServerError, err.Error())
+		js.logger.Error("failed to put json data", zap.String("cmd", "create"), zap.String("id", id), zap.Error(err))
+		ctx.text(http.StatusInternalServerError, "failed to write json data")
 		return
 	}
+	js.logger.Info("create", zap.String("id", id))
 	ctx.text(http.StatusCreated, id)
 }
 

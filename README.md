@@ -10,7 +10,7 @@ luson is a self-hosted JSON API server.
 
 ```
 curl -XPOST -H "Authorization:${KEY}" -i "http://${YOURHOST}/" -d \
-  '{"app": "luson", "loveFrom": [{"language":"Go"}, {"editor":"vscode"}, "GitHub"]}'
+     '{"app": "luson", "loveFrom": [{"language":"Go"}, {"editor":"vscode"}, "GitHub"]}'
 # returns JSON entry id
 201 Created
 06e30e01-bed7-451b-b35b-48dee43f06d4
@@ -53,7 +53,7 @@ curl -i "http://${YOURHOST}/${ID}/loveFrom/1/editor"
 
 ```
 curl -XPUT -H "Authorization:${KEY}" -i "http://${YOURHOST}/${ID}" -d \
-  '{"app": "luson", "version": "v0.1", "loveFrom": [{"language":"Go"}, {"editor":"vscode"}, "GitHub"]}'
+     '{"app": "luson", "version": "v0.1", "loveFrom": [{"language":"Go"}, {"editor":"vscode"}, "GitHub"]}'
 
 200 OK
 ```
@@ -62,29 +62,46 @@ curl -XPUT -H "Authorization:${KEY}" -i "http://${YOURHOST}/${ID}" -d \
 
 ```
 curl -XPUT -H "Authorization:${KEY}" -i "http://${YOURHOST}/${ID}/loveFrom/language" -d \
-  '["Go", "markdown"]'
+     '["Go", "markdown"]'
 
 200 OK
 ```
 
 ### Patch
 
-- Patch+Merge
+- merge-patch
 
 More detail see [RFC7386](https://tools.ietf.org/html/rfc7386).
 
 ```
-curl -XPATCH -H "Authorization:${KEY}" -i "http://${YOURHOST}/${ID}" -d \
-  '{"author": "disksing", "loveFrom": null}'
+curl -XPATCH -H "Authorization: ${KEY}" \
+     -H "Content-Type: application/merge-patch+json" \
+     -i "http://${YOURHOST}/${ID}" -d \
+     '{"author": "disksing", "loveFrom": null}'
 
 200 OK
 ```
 
-- Patch+Merge partial entry
+- merge-patch partial entry
 
 ```
-curl -XPATCH -H "Authorization:${KEY}" -i "http://${YOURHOST}/${ID}/loveFrom/0" -d \
-  '{"language": ["Go", "markdown"]}'
+curl -XPATCH -H "Authorization: ${KEY}" \
+     -H "Content-Type: application/merge-patch+json" \
+     -i "http://${YOURHOST}/${ID}/loveFrom/0" -d \
+     '{"language": ["Go", "markdown"]}'
+
+200 OK
+```
+
+- json-patch
+
+More details see [RFC6902](https://tools.ietf.org/html/rfc6902)
+
+```
+curl -XPATCH -H "Authorization: ${KEY}" \
+     -H "Content-Type: application/json-patch+json" \
+     -i "http://${YOURHOST}/${ID}" -d \
+     '[{"op": "add", "path": "/loveFrom/-", "value": {"tools": ["thinkpad"]}}]'
 
 200 OK
 ```

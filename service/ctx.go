@@ -82,6 +82,10 @@ func (ctx *httpCtx) text(status int, v string) {
 	_ = ctx.render.Text(ctx.w, status, v)
 }
 
+func (ctx *httpCtx) statusText(status int) {
+	ctx.text(status, http.StatusText(status))
+}
+
 func (ctx *httpCtx) json(status int, v interface{}) {
 	_ = ctx.render.JSON(ctx.w, status, v)
 }
