@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/disksing/luson/key"
+	"github.com/disksing/luson/util"
 	"github.com/unrolled/render"
 )
 
@@ -33,49 +33,75 @@ func newCtx(w http.ResponseWriter, r *http.Request) *httpCtx {
 	}
 }
 
-func (ctx *httpCtx) readBody() ([]byte, error) {
+func (ctx *httpCtx) readBody() ([]byte, bool) {
 	defer ctx.r.Body.Close()
 	data, err := ioutil.ReadAll(ctx.r.Body)
 	if err != nil {
 		ctx.text(http.StatusInternalServerError, err.Error())
-		return nil, err
+		return nil, false
 	}
-	return data, nil
+	return data, true
 }
 
-func (ctx *httpCtx) parseJSON(data []byte) (interface{}, error) {
+func (ctx *httpCtx) parseJSON(data []byte) (interface{}, bool) {
 	var v interface{}
 	err := json.Unmarshal(data, &v)
 	if err != nil {
 		ctx.text(http.StatusBadRequest, err.Error())
-		return nil, err
+		return nil, false
 	}
-	return v, nil
+	return v, true
 }
 
-func (ctx *httpCtx) readJSON() (interface{}, error) {
-	data, err := ctx.readBody()
-	if err != nil {
-		return nil, err
+func (ctx *httpCtx) readJSON() (interface{}, bool) {
+	data, ok := ctx.readBody()
+	if !ok {
+		return nil, false
 	}
-	v, err := ctx.parseJSON(data)
-	if err != nil {
-		return nil, err
+	v, ok := ctx.parseJSON(data)
+	if !ok {
+		return nil, false
 	}
-	return v, nil
+	return v, true
 }
 
-func (ctx *httpCtx) uriPointer() (string, error) {
-	splits := strings.Split(ctx.r.RequestURI, "/")[2:] // trim /id prefix
-	for i := range splits {
-		s, err := url.PathUnescape(splits[i])
-		if err != nil {
-			ctx.text(http.StatusBadRequest, err.Error())
-			return "", err
+// returns v, empty, ok
+func (ctx *httpCtx) readJSONEx() (interface{}, bool, bool) {
+	data, ok := ctx.readBody()
+	if !ok {
+		return nil, false, false
+	}
+	if len(data) == 0 {
+		return nil, true, true
+	}
+	v, ok := ctx.parseJSON(data)
+	if !ok {
+		return nil, false, false
+	}
+	return v, false, true
+}
+
+func (ctx *httpCtx) uriPointer() (string, string, bool) {
+	rep := strings.NewReplacer("~", "~0", "/", "~1")
+	var id string
+	var sb strings.Builder
+	path := ctx.r.URL.Path
+	if path != "" && path[0] == '/' {
+		path = path[1:]
+	}
+	for _, s := range strings.Split(path, "/") {
+		if id == "" {
+			if !util.IsUUID(s) {
+				ctx.text(http.StatusBadRequest, "expected UUID in request URL")
+				return "", "", false
+			}
+			id = s
+			continue
 		}
-		splits[i] = "/" + strings.NewReplacer("~", "~0", "/", "~1").Replace(s)
+		sb.WriteByte('/')
+		sb.WriteString(rep.Replace(s))
 	}
-	return strings.Join(splits, ""), nil
+	return id, sb.String(), true
 }
 
 func (ctx *httpCtx) text(status int, v string) {
@@ -92,4 +118,22 @@ func (ctx *httpCtx) json(status int, v interface{}) {
 
 func (ctx *httpCtx) checkAPIKey(apiKey key.APIKey) bool {
 	return ctx.r.Header.Get("Authorization") == string(apiKey)
+}
+
+func (ctx *httpCtx) probeMergeType(v interface{}) string {
+	for _, t := range ctx.r.Header.Values("Content-Type") {
+		switch t {
+		case "application/json-patch+json":
+			return "json-patch"
+		case "application/merge-patch+json":
+			return "merge-patch"
+		}
+	}
+	if ctx.r.RequestURI == "/" {
+		return "json-patch"
+	}
+	if _, ok := v.([]interface{}); ok {
+		return "json-patch"
+	}
+	return "merge-patch"
 }

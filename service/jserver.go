@@ -8,10 +8,10 @@ import (
 	"github.com/disksing/luson/jsonstore"
 	"github.com/disksing/luson/key"
 	"github.com/disksing/luson/metastore"
-	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 )
 
+// JServer services JSON data.
 type JServer struct {
 	logger *zap.SugaredLogger
 	mstore *metastore.Store
@@ -20,6 +20,7 @@ type JServer struct {
 	apiKey key.APIKey
 }
 
+// NewJServer creates the JSON service handler.
 func NewJServer(mstore *metastore.Store, jstore *jsonstore.Store, apiKey key.APIKey, conf *config.Config, logger *zap.SugaredLogger) *JServer {
 	return &JServer{
 		logger: logger,
@@ -30,6 +31,7 @@ func NewJServer(mstore *metastore.Store, jstore *jsonstore.Store, apiKey key.API
 	}
 }
 
+// Create handles JSON POST requests.
 func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 	ctx := newCtx(w, r)
 
@@ -38,17 +40,9 @@ func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b, err := ctx.readBody()
-	if err != nil {
+	v, _, ok := ctx.readJSONEx()
+	if !ok {
 		return
-	}
-
-	var v interface{}
-	if len(b) > 0 {
-		v, err = ctx.parseJSON(b)
-		if err != nil {
-			return
-		}
 	}
 
 	id, err := js.mstore.Create()
@@ -73,32 +67,24 @@ func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 	ctx.text(http.StatusCreated, id)
 }
 
+// Get handles JSON GET requests.
 func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
 	ctx := newCtx(w, r)
+	id, p, ok := ctx.uriPointer()
+	if !ok {
+		return
+	}
 
-	id := mux.Vars(r)["id"]
-	mdata, err := js.mstore.Get(id)
-	if err != nil {
-		ctx.text(http.StatusInternalServerError, err.Error())
+	if !js.checkMetaForRead(ctx, id) {
 		return
 	}
-	if mdata == nil {
-		ctx.text(http.StatusNotFound, "")
-		return
-	}
-	if mdata.Access == config.Private && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusNotFound, "")
-		return
-	}
+
 	v, hash, err := js.jstore.Get(id)
 	if err != nil {
 		ctx.text(http.StatusInternalServerError, err.Error())
 		return
 	}
-	p, err := ctx.uriPointer()
-	if err != nil {
-		return
-	}
+
 	v, err = jsonp.Get(v, p)
 	if err != nil {
 		ctx.text(http.StatusNotAcceptable, err.Error())
@@ -109,40 +95,26 @@ func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
 	ctx.json(http.StatusOK, v)
 }
 
+// Put handles JSON PUT requests.
 func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 	ctx := newCtx(w, r)
 
-	id := mux.Vars(r)["id"]
-	v, err := ctx.readJSON()
-	if err != nil {
+	id, p, ok := ctx.uriPointer()
+	if !ok {
 		return
 	}
-	mdata, err := js.mstore.Get(id)
-	if err != nil {
-		ctx.text(http.StatusInternalServerError, err.Error())
+	v, ok := ctx.readJSON()
+	if !ok {
 		return
 	}
-	if mdata == nil {
-		ctx.text(http.StatusNotFound, "")
-		return
-	}
-	if mdata.Access == config.Private && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusNotFound, "")
-		return
-	}
-	if mdata.Access == config.Protected && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusForbidden, "")
+	if !js.checkMetaForWrite(ctx, id) {
 		return
 	}
 
-	p, err := ctx.uriPointer()
-	if err != nil {
-		return
-	}
 	var hash string
 	if p != "" {
-		// TODO: TXN
 		var old interface{}
+		var err error
 		old, hash, err = js.jstore.Get(id)
 		if err != nil {
 			ctx.text(http.StatusInternalServerError, err.Error())
@@ -155,7 +127,7 @@ func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = js.jstore.Put(id, v)
+	err := js.jstore.Put(id, v)
 	if err != nil {
 		ctx.text(http.StatusInternalServerError, err.Error())
 		return
@@ -166,44 +138,40 @@ func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 	ctx.text(http.StatusOK, "")
 }
 
+// Patch handles JSON PATCH requests.
 func (js *JServer) Patch(w http.ResponseWriter, r *http.Request) {
 	ctx := newCtx(w, r)
+	id, p, ok := ctx.uriPointer()
+	if !ok {
+		return
+	}
+	v, ok := ctx.readJSON()
+	if !ok {
+		return
+	}
+	if ctx.probeMergeType(v) == "merge-patch" {
+		js.mergePatch(ctx, id, p, v)
+	} else {
+		js.jsonPatch(ctx, id, p, v)
+	}
+}
 
-	// FIXME: same with PUT
-	id := mux.Vars(r)["id"]
-	v, err := ctx.readJSON()
-	if err != nil {
-		return
-	}
-	mdata, err := js.mstore.Get(id)
-	if err != nil {
-		ctx.text(http.StatusInternalServerError, err.Error())
-		return
-	}
-	if mdata == nil {
-		ctx.text(http.StatusNotFound, "")
-		return
-	}
-	if mdata.Access == config.Private && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusNotFound, "")
-		return
-	}
-	if mdata.Access == config.Protected && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusForbidden, "")
+func (js *JServer) mergePatch(ctx *httpCtx, id, p string, v interface{}) {
+	if id == "" {
+		ctx.text(http.StatusBadRequest, "expect resource id")
 		return
 	}
 
-	// TODO: TXN
+	if !js.checkMetaForWrite(ctx, id) {
+		return
+	}
+
 	old, hash, err := js.jstore.Get(id)
 	if err != nil {
 		ctx.text(http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	p, err := ctx.uriPointer()
-	if err != nil {
-		return
-	}
 	sub, err := jsonp.Get(old, p)
 	if err != nil {
 		ctx.text(http.StatusNotAcceptable, err.Error())
@@ -223,4 +191,37 @@ func (js *JServer) Patch(w http.ResponseWriter, r *http.Request) {
 		ctx.w.Header().Add("ETag", hash)
 	}
 	ctx.text(http.StatusOK, "")
+}
+
+func (js *JServer) jsonPatch(ctx *httpCtx, srcID, basePath string, v interface{}) {
+
+}
+
+func (js *JServer) checkMeta(ctx *httpCtx, id string, mut bool) (ok bool) {
+	mdata, err := js.mstore.Get(id)
+	if err != nil {
+		ctx.text(http.StatusInternalServerError, err.Error())
+		return
+	}
+	if mdata == nil {
+		ctx.text(http.StatusNotFound, id)
+		return
+	}
+	if mdata.Access == config.Private && !ctx.checkAPIKey(js.apiKey) {
+		ctx.text(http.StatusNotFound, id)
+		return
+	}
+	if mut && mdata.Access == config.Protected && !ctx.checkAPIKey(js.apiKey) {
+		ctx.text(http.StatusUnauthorized, id)
+		return
+	}
+	return true
+}
+
+func (js *JServer) checkMetaForRead(ctx *httpCtx, id string) bool {
+	return js.checkMeta(ctx, id, false)
+}
+
+func (js *JServer) checkMetaForWrite(ctx *httpCtx, id string) bool {
+	return js.checkMeta(ctx, id, true)
 }
