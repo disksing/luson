@@ -8,7 +8,6 @@ import (
 	"github.com/disksing/luson/jsonstore"
 	"github.com/disksing/luson/key"
 	"github.com/disksing/luson/metastore"
-	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 )
 
@@ -64,39 +63,13 @@ func (js *JServer) Create(w http.ResponseWriter, r *http.Request) {
 	ctx.text(http.StatusCreated, id)
 }
 
-func (js *JServer) checkMeta(ctx *httpCtx, id string, mut bool) (ok bool) {
-	mdata, err := js.mstore.Get(id)
-	if err != nil {
-		ctx.text(http.StatusInternalServerError, err.Error())
-		return
-	}
-	if mdata == nil {
-		ctx.text(http.StatusNotFound, "")
-		return
-	}
-	if mdata.Access == config.Private && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusNotFound, "")
-		return
-	}
-	if mut && mdata.Access == config.Protected && !ctx.checkAPIKey(js.apiKey) {
-		ctx.text(http.StatusUnauthorized, "")
-		return
-	}
-	return true
-}
-
-func (js *JServer) checkMetaForRead(ctx *httpCtx, id string) bool {
-	return js.checkMeta(ctx, id, false)
-}
-
-func (js *JServer) checkMetaForWrite(ctx *httpCtx, id string) bool {
-	return js.checkMeta(ctx, id, true)
-}
-
 // Get handles JSON GET requests.
 func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
 	ctx := newCtx(w, r)
-	id := mux.Vars(r)["id"]
+	id, p, ok := ctx.uriPointer()
+	if !ok {
+		return
+	}
 
 	if !js.checkMetaForRead(ctx, id) {
 		return
@@ -107,10 +80,7 @@ func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
 		ctx.text(http.StatusInternalServerError, err.Error())
 		return
 	}
-	p, ok := ctx.uriPointer()
-	if !ok {
-		return
-	}
+
 	v, err = jsonp.Get(v, p)
 	if err != nil {
 		ctx.text(http.StatusNotAcceptable, err.Error())
@@ -124,8 +94,11 @@ func (js *JServer) Get(w http.ResponseWriter, r *http.Request) {
 // Put handles JSON PUT requests.
 func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 	ctx := newCtx(w, r)
-	id := mux.Vars(r)["id"]
 
+	id, p, ok := ctx.uriPointer()
+	if !ok {
+		return
+	}
 	v, ok := ctx.readJSON()
 	if !ok {
 		return
@@ -134,13 +107,8 @@ func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	p, ok := ctx.uriPointer()
-	if !ok {
-		return
-	}
 	var hash string
 	if p != "" {
-		// TODO: TXN
 		var old interface{}
 		var err error
 		old, hash, err = js.jstore.Get(id)
@@ -169,27 +137,37 @@ func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 // Patch handles JSON PATCH requests.
 func (js *JServer) Patch(w http.ResponseWriter, r *http.Request) {
 	ctx := newCtx(w, r)
-
-	id := mux.Vars(r)["id"]
+	id, p, ok := ctx.uriPointer()
+	if !ok {
+		return
+	}
 	v, ok := ctx.readJSON()
 	if !ok {
 		return
 	}
+	if ctx.probeMergeType(v) == "merge-patch" {
+		js.mergePatch(ctx, id, p, v)
+	} else {
+		js.jsonPatch(ctx, id, p, v)
+	}
+}
+
+func (js *JServer) mergePatch(ctx *httpCtx, id, p string, v interface{}) {
+	if id == "" {
+		ctx.text(http.StatusBadRequest, "expect resource id")
+		return
+	}
+
 	if !js.checkMetaForWrite(ctx, id) {
 		return
 	}
 
-	// TODO: TXN
 	old, hash, err := js.jstore.Get(id)
 	if err != nil {
 		ctx.text(http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	p, ok := ctx.uriPointer()
-	if !ok {
-		return
-	}
 	sub, err := jsonp.Get(old, p)
 	if err != nil {
 		ctx.text(http.StatusNotAcceptable, err.Error())
@@ -209,4 +187,37 @@ func (js *JServer) Patch(w http.ResponseWriter, r *http.Request) {
 		ctx.w.Header().Add("ETag", hash)
 	}
 	ctx.text(http.StatusOK, "")
+}
+
+func (js *JServer) jsonPatch(ctx *httpCtx, srcID, basePath string, v interface{}) {
+
+}
+
+func (js *JServer) checkMeta(ctx *httpCtx, id string, mut bool) (ok bool) {
+	mdata, err := js.mstore.Get(id)
+	if err != nil {
+		ctx.text(http.StatusInternalServerError, err.Error())
+		return
+	}
+	if mdata == nil {
+		ctx.text(http.StatusNotFound, id)
+		return
+	}
+	if mdata.Access == config.Private && !ctx.checkAPIKey(js.apiKey) {
+		ctx.text(http.StatusNotFound, id)
+		return
+	}
+	if mut && mdata.Access == config.Protected && !ctx.checkAPIKey(js.apiKey) {
+		ctx.text(http.StatusUnauthorized, id)
+		return
+	}
+	return true
+}
+
+func (js *JServer) checkMetaForRead(ctx *httpCtx, id string) bool {
+	return js.checkMeta(ctx, id, false)
+}
+
+func (js *JServer) checkMetaForWrite(ctx *httpCtx, id string) bool {
+	return js.checkMeta(ctx, id, true)
 }
