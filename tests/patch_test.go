@@ -12,22 +12,9 @@ func TestPatch(t *testing.T) {
 	env, err := NewEnv()
 	r.Nil(err)
 	defer env.Close()
+	id := mustPostExample(r, env)
 
-	v := map[string]interface{}{
-		"app": "luson",
-		"loveFrom": []interface{}{
-			map[string]interface{}{"language": "Go"},
-			map[string]interface{}{"editor": "vscode"},
-			"GitHub",
-		},
-	}
-	res, err := env.at("/").withAuth().withContent(v).post()
-	r.Nil(err)
-	r.Equal(http.StatusCreated, res.Status)
-
-	id := res.RawContent
-
-	res, err = env.at("/" + id).withAuth().withRawContent(`{"author": "disksing", "loveFrom": null}`).patch()
+	res, err := env.at("/" + id).withAuth().withRawContent(`{"author": "disksing", "loveFrom": null}`).patch()
 	r.Nil(err)
 	r.Equal(http.StatusOK, res.Status)
 
@@ -39,9 +26,7 @@ func TestPatch(t *testing.T) {
 	r.Nil(err)
 	r.Equal(http.StatusNotAcceptable, res.Status)
 
-	res, err = env.at("/" + id).withAuth().withContent(v).put()
-	r.Nil(err)
-	r.Equal(http.StatusOK, res.Status)
+	id = mustPostExample(r, env)
 
 	res, err = env.at("/" + id + "/loveFrom/0").withAuth().withRawContent(`{"language": ["Go", "markdown"]}`).patch()
 	r.Nil(err)
@@ -51,4 +36,21 @@ func TestPatch(t *testing.T) {
 	r.Nil(err)
 	r.Equal(http.StatusOK, res.Status)
 	r.Equal([]interface{}{"Go", "markdown"}, res.Value.([]interface{}))
+}
+
+func TestJSONPatch(t *testing.T) {
+	r := require.New(t)
+	env, err := NewEnv()
+	r.Nil(err)
+	defer env.Close()
+	id := mustPostExample(r, env)
+
+	res, err := env.at("/" + id).withAuth().withRawContent(`[{"op": "add", "path": "/loveFrom/-", "value": {"tools": ["thinkpad"]}}]`).patch()
+	r.Nil(err)
+	r.Equal(http.StatusOK, res.Status, res.RawContent)
+
+	res, err = env.at("/" + id + "/loveFrom/3/tools/0").get()
+	r.Nil(err)
+	r.Equal(http.StatusOK, res.Status)
+	r.Equal("thinkpad", res.Value)
 }

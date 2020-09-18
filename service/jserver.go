@@ -345,7 +345,7 @@ type jsonPatch struct {
 	fromID string
 }
 
-func (js *JServer) readJSONPatch(ctx *httpCtx, id, basePath string, data []byte) (ps []jsonPatch, ok bool) {
+func (js *JServer) readJSONPatch(ctx *httpCtx, id, basePath string, data []byte) (ps []*jsonPatch, ok bool) {
 	if !ctx.unmarshalJSON(data, &ps) {
 		return nil, false
 	}
