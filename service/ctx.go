@@ -91,7 +91,10 @@ func (ctx *httpCtx) readJSONEx() (interface{}, bool, bool) {
 func (ctx *httpCtx) uriPointer() (string, string, bool) {
 	var id string
 	var sb strings.Builder
-	path := ctx.r.URL.RawPath
+	path := ctx.r.URL.Path
+	if ctx.r.URL.RawPath != "" {
+		path = ctx.r.URL.RawPath
+	}
 	if path != "" && path[0] == '/' {
 		path = path[1:]
 	}
