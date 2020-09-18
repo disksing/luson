@@ -196,6 +196,29 @@ func (js *JServer) mergePatch(ctx *httpCtx, id, p string, v interface{}) {
 	ctx.statusText(http.StatusOK)
 }
 
+func (js *JServer) txnGetForWrite(ctx *httpCtx, txn *jsonstore.Txn, id string) (interface{}, bool) {
+	return js.txnGet(ctx, txn, id, true)
+}
+
+func (js *JServer) txnGetForRead(ctx *httpCtx, txn *jsonstore.Txn, id string) (interface{}, bool) {
+	return js.txnGet(ctx, txn, id, false)
+}
+
+func (js *JServer) txnGet(ctx *httpCtx, txn *jsonstore.Txn, id string, mut bool) (interface{}, bool) {
+	if !js.checkMeta(ctx, id, mut) {
+		return nil, false
+	}
+	v, err := txn.Get(id)
+	if err != nil {
+		ctx.text(http.StatusInternalServerError, "failed to load JSON, id="+id)
+		return nil, false
+	}
+	if mut {
+		v = jsonp.Clone(v)
+	}
+	return v, true
+}
+
 func (js *JServer) jsonPatch(ctx *httpCtx, id, basePath string, data []byte) {
 	ps, ok := js.readJSONPatch(ctx, id, basePath, data)
 	if !ok {
@@ -205,26 +228,112 @@ func (js *JServer) jsonPatch(ctx *httpCtx, id, basePath string, data []byte) {
 	for _, p := range ps {
 		switch p.Op {
 		case "test":
-			if !js.checkMetaForWrite(ctx, p.pathID) {
-				return
-			}
-			v, err := txn.Get(p.pathID)
-			if err != nil {
-				ctx.text(http.StatusInternalServerError, "id:"+p.pathID)
-				return
-			}
-			v, err = jsonp.Get(v, p.Path)
-			if err != nil {
-				ctx.text(http.StatusBadRequest, err.Error())
+			v, ok := js.txnGetForRead(ctx, txn, p.id)
+			if !ok {
 				return
 			}
 			if !reflect.DeepEqual(v, p.Value) {
 				ctx.text(http.StatusPreconditionFailed, "value does not match")
 				return
 			}
-
+		case "remove":
+			v, ok := js.txnGetForWrite(ctx, txn, p.id)
+			if !ok {
+				return
+			}
+			v, err := jsonp.Remove(v, p.Path)
+			if err != nil {
+				ctx.text(http.StatusBadRequest, err.Error())
+				return
+			}
+			txn.Put(p.id, v)
+		case "add":
+			v, ok := js.txnGetForWrite(ctx, txn, p.id)
+			if !ok {
+				return
+			}
+			v, err := jsonp.Add(v, p.Path, p.Value)
+			if err != nil {
+				ctx.text(http.StatusBadRequest, err.Error())
+				return
+			}
+			txn.Put(p.id, v)
+		case "replace":
+			v, ok := js.txnGetForWrite(ctx, txn, p.id)
+			if !ok {
+				return
+			}
+			v, err := jsonp.Replace(v, p.Path, p.Value)
+			if err != nil {
+				ctx.text(http.StatusBadRequest, err.Error())
+				return
+			}
+			txn.Put(p.id, v)
+		case "move":
+			if p.id == p.fromID {
+				v, ok := js.txnGetForWrite(ctx, txn, p.id)
+				if !ok {
+					return
+				}
+				v, err := jsonp.Move(v, p.From, p.Path)
+				if err != nil {
+					ctx.text(http.StatusBadRequest, err.Error())
+					return
+				}
+				txn.Put(p.id, v)
+			} else {
+				from, ok := js.txnGetForWrite(ctx, txn, p.fromID)
+				if !ok {
+					return
+				}
+				to, ok := js.txnGetForWrite(ctx, txn, p.id)
+				if !ok {
+					return
+				}
+				from, to, err := jsonp.Move2(from, to, p.From, p.Path)
+				if err != nil {
+					ctx.text(http.StatusBadRequest, err.Error())
+					return
+				}
+				txn.Put(p.fromID, from)
+				txn.Put(p.id, to)
+			}
+		case "copy":
+			if p.id == p.fromID {
+				v, ok := js.txnGetForWrite(ctx, txn, p.id)
+				if !ok {
+					return
+				}
+				v, err := jsonp.Copy(v, p.From, p.Path)
+				if err != nil {
+					ctx.text(http.StatusBadRequest, err.Error())
+					return
+				}
+				txn.Put(p.id, v)
+			} else {
+				from, ok := js.txnGetForRead(ctx, txn, p.fromID)
+				if !ok {
+					return
+				}
+				to, ok := js.txnGetForWrite(ctx, txn, p.id)
+				if !ok {
+					return
+				}
+				to, err := jsonp.Copy2(from, to, p.From, p.Path)
+				if err != nil {
+					ctx.text(http.StatusBadRequest, err.Error())
+					return
+				}
+				txn.Put(p.id, to)
+			}
 		}
 	}
+	err := txn.Commit()
+	if err != nil {
+		ctx.statusText(http.StatusPreconditionFailed)
+		return
+	}
+	ctx.statusText(http.StatusOK)
 }
 
 type jsonPatch struct {
@@ -232,7 +341,7 @@ type jsonPatch struct {
 	Path   string      `json:"path"`
 	Value  interface{} `json:"value"`
 	From   string      `json:"from"`
-	pathID string
+	id     string
 	fromID string
 }
 
@@ -251,7 +360,7 @@ func (js *JServer) readJSONPatch(ctx *httpCtx, id, basePath string, data []byte)
 			fallthrough
 		case "test", "remove", "add", "replace":
 			// check path
-			p.pathID, p.Path, ok = js.adjustPath(ctx, id, basePath, p.Path, "path")
+			p.id, p.Path, ok = js.adjustPath(ctx, id, basePath, p.Path, "path")
 			if !ok {
 				return
 			}
