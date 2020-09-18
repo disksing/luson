@@ -23,18 +23,18 @@ func TestGet(t *testing.T) {
 	}
 	res, err := env.at("/").withAuth().withContent(v).post()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusCreated)
+	r.Equal(http.StatusCreated, res.Status)
 
 	id := res.RawContent
 
 	res, err = env.at("/" + id).get()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusOK)
-	r.Equal(res.Value, v)
+	r.Equal(http.StatusOK, res.Status)
+	r.Equal(v, res.Value)
 
 	res, err = env.at("/" + id).withPrettyHead().get()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusOK)
+	r.Equal(http.StatusOK, res.Status)
 	r.Equal(res.RawContent, `{
   "app": "luson",
   "loveFrom": [
@@ -51,22 +51,22 @@ func TestGet(t *testing.T) {
 
 	res2, err := env.at("/" + id).withPrettyParam().get()
 	r.Nil(err)
-	r.Equal(res2.Status, http.StatusOK)
-	r.Equal(res2.RawContent, res.RawContent)
+	r.Equal(http.StatusOK, res2.Status)
+	r.Equal(res.RawContent, res2.RawContent)
 
 	partial, err := env.at("/" + id + "/loveFrom/1/editor").get()
 	r.Nil(err)
-	r.Equal(partial.Status, http.StatusOK)
-	r.Equal(partial.Value, "vscode")
+	r.Equal(http.StatusOK, partial.Status)
+	r.Equal("vscode", partial.Value)
 
 	partial, err = env.at("/" + id + "/loveFrom/0").get()
 	r.Nil(err)
-	r.Equal(partial.Status, http.StatusOK)
-	r.Equal(partial.RawContent, `{"language":"Go"}`)
+	r.Equal(http.StatusOK, partial.Status)
+	r.Equal(`{"language":"Go"}`, partial.RawContent)
 
 	partial, err = env.at("/" + id + "/loveFrom/9").get()
 	r.Nil(err)
-	r.Equal(partial.Status, http.StatusNotAcceptable)
+	r.Equal(http.StatusNotAcceptable, partial.Status)
 }
 
 func TestUriPath(t *testing.T) {

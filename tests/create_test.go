@@ -17,16 +17,16 @@ func TestCreate(t *testing.T) {
 
 	res, err := env.at("/").post()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusUnauthorized)
+	r.Equal(http.StatusUnauthorized, res.Status)
 
 	res, err = env.at("/").withAuth().post()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusCreated)
+	r.Equal(http.StatusCreated, res.Status)
 	r.True(util.IsUUID(res.RawContent))
 
 	res, err = env.at("/" + res.RawContent).get()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusOK, res.RawContent)
+	r.Equal(http.StatusOK, res.Status, res.RawContent)
 	r.True(res.IsJSON)
 	r.Nil(res.Value)
 
@@ -37,7 +37,7 @@ func TestCreate(t *testing.T) {
 	r.True(util.IsUUID(res.RawContent))
 	res, err = env.at("/" + res.RawContent).get()
 	r.Nil(err)
-	r.Equal(res.RawContent, `["hello","world"]`)
+	r.Equal(`["hello","world"]`, res.RawContent)
 }
 
 func TestCreatePublic(t *testing.T) {
@@ -49,7 +49,7 @@ func TestCreatePublic(t *testing.T) {
 
 	res, err := env.at("/").post()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusCreated)
+	r.Equal(http.StatusCreated, res.Status)
 	r.True(util.IsUUID(res.RawContent))
 }
 
@@ -62,20 +62,20 @@ func TestCreatePrivate(t *testing.T) {
 
 	res, err := env.at("/").post()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusUnauthorized)
+	r.Equal(http.StatusUnauthorized, res.Status)
 
 	res, err = env.at("/").withAuth().post()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusCreated)
+	r.Equal(http.StatusCreated, res.Status)
 	r.True(util.IsUUID(res.RawContent))
 
 	id := res.RawContent
 	res, err = env.at("/" + id).get()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusNotFound)
+	r.Equal(http.StatusNotFound, res.Status)
 
 	res, err = env.at("/" + id).withAuth().get()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusOK)
+	r.Equal(http.StatusOK, res.Status)
 	r.Nil(res.Value)
 }

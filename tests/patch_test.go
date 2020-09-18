@@ -23,32 +23,32 @@ func TestPatch(t *testing.T) {
 	}
 	res, err := env.at("/").withAuth().withContent(v).post()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusCreated)
+	r.Equal(http.StatusCreated, res.Status)
 
 	id := res.RawContent
 
 	res, err = env.at("/" + id).withAuth().withRawContent(`{"author": "disksing", "loveFrom": null}`).patch()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusOK)
+	r.Equal(http.StatusOK, res.Status)
 
 	res, err = env.at("/" + id + "/author").get()
 	r.Nil(err)
-	r.Equal(res.RawContent, `"disksing"`)
+	r.Equal(`"disksing"`, res.RawContent)
 
 	res, err = env.at("/" + id + "/loveFrom").get()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusNotAcceptable)
+	r.Equal(http.StatusNotAcceptable, res.Status)
 
 	res, err = env.at("/" + id).withAuth().withContent(v).put()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusOK)
+	r.Equal(http.StatusOK, res.Status)
 
 	res, err = env.at("/" + id + "/loveFrom/0").withAuth().withRawContent(`{"language": ["Go", "markdown"]}`).patch()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusOK)
+	r.Equal(http.StatusOK, res.Status)
 
 	res, err = env.at("/" + id + "/loveFrom/0/language").get()
 	r.Nil(err)
-	r.Equal(res.Status, http.StatusOK)
-	r.Equal(res.Value.([]interface{}), []interface{}{"Go", "markdown"})
+	r.Equal(http.StatusOK, res.Status)
+	r.Equal([]interface{}{"Go", "markdown"}, res.Value.([]interface{}))
 }
