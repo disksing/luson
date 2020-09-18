@@ -9,7 +9,7 @@ import (
 
 // NewRouter returns the root HTTP handler.
 func NewRouter(js *JServer) *mux.Router {
-	r := mux.NewRouter()
+	r := mux.NewRouter().UseEncodedPath()
 
 	id := fmt.Sprintf("{id:%s}", util.UUIDRegexp)
 

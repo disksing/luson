@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strings"
 
+	"github.com/disksing/luson/jsonp"
 	"github.com/disksing/luson/key"
 	"github.com/disksing/luson/util"
 	"github.com/unrolled/render"
@@ -82,10 +84,9 @@ func (ctx *httpCtx) readJSONEx() (interface{}, bool, bool) {
 }
 
 func (ctx *httpCtx) uriPointer() (string, string, bool) {
-	rep := strings.NewReplacer("~", "~0", "/", "~1")
 	var id string
 	var sb strings.Builder
-	path := ctx.r.URL.Path
+	path := ctx.r.URL.RawPath
 	if path != "" && path[0] == '/' {
 		path = path[1:]
 	}
@@ -99,7 +100,12 @@ func (ctx *httpCtx) uriPointer() (string, string, bool) {
 			continue
 		}
 		sb.WriteByte('/')
-		sb.WriteString(rep.Replace(s))
+		s, err := url.PathUnescape(s)
+		if err != nil {
+			ctx.text(http.StatusBadRequest, "failed to unescape request URI")
+			return "", "", false
+		}
+		sb.WriteString(jsonp.PointerEscaper.Replace(s))
 	}
 	return id, sb.String(), true
 }

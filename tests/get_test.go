@@ -68,3 +68,20 @@ func TestGet(t *testing.T) {
 	r.Nil(err)
 	r.Equal(partial.Status, http.StatusNotAcceptable)
 }
+
+func TestUriPath(t *testing.T) {
+	r := require.New(t)
+	env, err := NewEnv()
+	r.Nil(err)
+	defer env.Close()
+
+	v := `{"/":{"~~1~0/":{"foo":"bar"}}}`
+	res, err := env.at("/").withAuth().withRawContent(v).post()
+	r.Nil(err)
+	r.Equal(http.StatusCreated, res.Status)
+
+	id := res.RawContent
+	res, err = env.at("/" + id + "/%2f/%7e%7e1%7e0%2f/foo").get()
+	r.Nil(err)
+	r.Equal("bar", res.Value)
+}

@@ -9,6 +9,13 @@ import (
 	"github.com/pkg/errors"
 )
 
+var (
+	// PointerEscaper is a replacer to replace `~`, `/` with `~0`, `~1`.
+	PointerEscaper = strings.NewReplacer("~", "~0", "/", "~1")
+	// PointerUnescaper is a replacer to replace `~0`, `~1` with `~`, `/`.
+	PointerUnescaper = strings.NewReplacer("~0", "~", "~1", "/")
+)
+
 type (
 	// Any represents any JSON node.
 	Any = interface{}
