@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 
+	"github.com/disksing/luson/util"
 	"go.uber.org/zap"
 )
 
@@ -46,7 +47,7 @@ func NewConfig() *Config {
 
 type DataDir string
 
-func NewDataDir(conf *Config, logger *zap.SugaredLogger) (DataDir, error) {
+func NewDataDir(conf *Config, logger *util.Logger) (DataDir, error) {
 	_, err := os.Stat(conf.DataDir)
 	if os.IsNotExist(err) {
 		logger.Infow("data dir not exist, creating")

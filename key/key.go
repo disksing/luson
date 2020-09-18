@@ -6,13 +6,14 @@ import (
 	"path"
 
 	"github.com/disksing/luson/config"
+	"github.com/disksing/luson/util"
 	uuid "github.com/satori/go.uuid"
 	"go.uber.org/zap"
 )
 
 type APIKey string
 
-func NewAPIKey(dataDir config.DataDir, logger *zap.SugaredLogger) (APIKey, error) {
+func NewAPIKey(dataDir config.DataDir, logger *util.Logger) (APIKey, error) {
 	defer logger.Sync()
 	f := path.Join(string(dataDir), fname)
 	data, err := ioutil.ReadFile(f)

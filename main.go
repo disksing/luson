@@ -11,7 +11,6 @@ import (
 	"github.com/disksing/luson/util"
 	"github.com/gorilla/mux"
 	"go.uber.org/dig"
-	"go.uber.org/zap"
 )
 
 func main() {
@@ -27,7 +26,7 @@ func main() {
 	_ = c.Invoke(start)
 }
 
-func start(logger *zap.SugaredLogger, router *mux.Router) {
+func start(logger *util.Logger, router *mux.Router) {
 	logger.Info("ready to start")
 	logger.Error(http.ListenAndServe(":42195", router))
 }

@@ -8,12 +8,13 @@ import (
 	"github.com/disksing/luson/jsonstore"
 	"github.com/disksing/luson/key"
 	"github.com/disksing/luson/metastore"
+	"github.com/disksing/luson/util"
 	"go.uber.org/zap"
 )
 
 // JServer services JSON data.
 type JServer struct {
-	logger *zap.SugaredLogger
+	logger *util.Logger
 	mstore *metastore.Store
 	jstore *jsonstore.Store
 	conf   *config.Config
@@ -21,7 +22,7 @@ type JServer struct {
 }
 
 // NewJServer creates the JSON service handler.
-func NewJServer(mstore *metastore.Store, jstore *jsonstore.Store, apiKey key.APIKey, conf *config.Config, logger *zap.SugaredLogger) *JServer {
+func NewJServer(mstore *metastore.Store, jstore *jsonstore.Store, apiKey key.APIKey, conf *config.Config, logger *util.Logger) *JServer {
 	return &JServer{
 		logger: logger,
 		mstore: mstore,
