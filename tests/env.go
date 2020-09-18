@@ -16,6 +16,7 @@ import (
 	"go.uber.org/dig"
 )
 
+// Env is a mock api server.
 type Env struct {
 	Conf    *config.Config
 	dataDir string
@@ -23,6 +24,7 @@ type Env struct {
 	addr    string
 }
 
+// NewEnv creates env for tests.
 func NewEnv() (*Env, error) {
 	c := dig.New()
 	_ = c.Provide(newMockConfig)
@@ -56,6 +58,7 @@ func NewEnv() (*Env, error) {
 	return env, nil
 }
 
+// Close stops server and clean up files.
 func (env *Env) Close() {
 	env.server.Close()
 	os.RemoveAll(env.dataDir)
@@ -78,4 +81,5 @@ func newMockAPIKey() key.APIKey {
 	return MockAPIKey
 }
 
+// MockAPIKey is used for tests.
 const MockAPIKey = "11112222-3333-4444-aaaa-bbbbccccdddd"

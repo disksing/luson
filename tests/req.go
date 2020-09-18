@@ -9,6 +9,7 @@ import (
 	"path"
 )
 
+// Req contains options to initial a HTTP request to mock server.
 type Req struct {
 	addr    string
 	url     string
@@ -121,6 +122,7 @@ func (r *Req) exec(method string) (*Res, error) {
 	}, nil
 }
 
+// Res represents server HTTP response.
 type Res struct {
 	Status     int
 	RawContent string
