@@ -1,7 +1,9 @@
 package service
 
 import (
+	"fmt"
 	"net/http"
+	"reflect"
 
 	"github.com/disksing/luson/config"
 	"github.com/disksing/luson/jsonp"
@@ -104,7 +106,7 @@ func (js *JServer) Put(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	v, ok := ctx.readJSON()
+	_, v, ok := ctx.readJSON()
 	if !ok {
 		return
 	}
@@ -146,14 +148,14 @@ func (js *JServer) Patch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	v, ok := ctx.readJSON()
+	raw, v, ok := ctx.readJSON()
 	if !ok {
 		return
 	}
 	if ctx.probeMergeType(v) == "merge-patch" {
 		js.mergePatch(ctx, id, p, v)
 	} else {
-		js.jsonPatch(ctx, id, p, v)
+		js.jsonPatch(ctx, id, p, raw)
 	}
 }
 
@@ -191,11 +193,90 @@ func (js *JServer) mergePatch(ctx *httpCtx, id, p string, v interface{}) {
 	if hash != "" {
 		ctx.w.Header().Add("ETag", hash)
 	}
-	ctx.text(http.StatusOK, "")
+	ctx.statusText(http.StatusOK)
 }
 
-func (js *JServer) jsonPatch(ctx *httpCtx, srcID, basePath string, v interface{}) {
+func (js *JServer) jsonPatch(ctx *httpCtx, id, basePath string, data []byte) {
+	ps, ok := js.readJSONPatch(ctx, id, basePath, data)
+	if !ok {
+		return
+	}
+	txn := js.jstore.NewTxn()
+	for _, p := range ps {
+		switch p.Op {
+		case "test":
+			if !js.checkMetaForWrite(ctx, p.pathID) {
+				return
+			}
+			v, err := txn.Get(p.pathID)
+			if err != nil {
+				ctx.text(http.StatusInternalServerError, "id:"+p.pathID)
+				return
+			}
+			v, err = jsonp.Get(v, p.Path)
+			if err != nil {
+				ctx.text(http.StatusBadRequest, err.Error())
+				return
+			}
+			if !reflect.DeepEqual(v, p.Value) {
+				ctx.text(http.StatusPreconditionFailed, "value does not match")
+				return
+			}
 
+		}
+	}
+}
+
+type jsonPatch struct {
+	Op     string      `json:"op"`
+	Path   string      `json:"path"`
+	Value  interface{} `json:"value"`
+	From   string      `json:"from"`
+	pathID string
+	fromID string
+}
+
+func (js *JServer) readJSONPatch(ctx *httpCtx, id, basePath string, data []byte) (ps []jsonPatch, ok bool) {
+	if !ctx.unmarshalJSON(data, &ps) {
+		return nil, false
+	}
+	for _, p := range ps {
+		switch p.Op {
+		case "move", "copy":
+			// check from
+			p.fromID, p.From, ok = js.adjustPath(ctx, id, basePath, p.From, "from")
+			if !ok {
+				return
+			}
+			fallthrough
+		case "test", "remove", "add", "replace":
+			// check path
+			p.pathID, p.Path, ok = js.adjustPath(ctx, id, basePath, p.Path, "path")
+			if !ok {
+				return
+			}
+		default:
+			ctx.text(http.StatusBadRequest, "invalid optype "+p.Op)
+			return nil, false
+		}
+	}
+	return ps, true
+}
+
+func (js *JServer) adjustPath(ctx *httpCtx, id, basePath, path, typ string) (string, string, bool) {
+	if path != "" && path[0] != '/' {
+		// start with UUID
+		if len(path) < util.UUIDLen || !util.IsUUID(path[:util.UUIDLen]) {
+			ctx.text(http.StatusBadRequest, fmt.Sprintf("expect uuid in %s `%s`", typ, path))
+			return "", "", false
+		}
+		return path[:util.UUIDLen], path[util.UUIDLen:], true
+	}
+	if id == "" {
+		ctx.text(http.StatusBadRequest, fmt.Sprintf("expect uuid in %s `%s`", typ, path))
+		return "", "", false
+	}
+	return id, basePath + path, true
 }
 
 func (js *JServer) checkMeta(ctx *httpCtx, id string, mut bool) (ok bool) {

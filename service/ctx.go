@@ -45,26 +45,31 @@ func (ctx *httpCtx) readBody() ([]byte, bool) {
 	return data, true
 }
 
-func (ctx *httpCtx) parseJSON(data []byte) (interface{}, bool) {
-	var v interface{}
-	err := json.Unmarshal(data, &v)
+func (ctx *httpCtx) unmarshalJSON(data []byte, v interface{}) bool {
+	err := json.Unmarshal(data, v)
 	if err != nil {
 		ctx.text(http.StatusBadRequest, err.Error())
-		return nil, false
+		return false
 	}
-	return v, true
+	return true
 }
 
-func (ctx *httpCtx) readJSON() (interface{}, bool) {
+func (ctx *httpCtx) parseJSON(data []byte) (interface{}, bool) {
+	var v interface{}
+	ok := ctx.unmarshalJSON(data, &v)
+	return v, ok
+}
+
+func (ctx *httpCtx) readJSON() ([]byte, interface{}, bool) {
 	data, ok := ctx.readBody()
 	if !ok {
-		return nil, false
+		return nil, nil, false
 	}
 	v, ok := ctx.parseJSON(data)
 	if !ok {
-		return nil, false
+		return data, nil, false
 	}
-	return v, true
+	return data, v, true
 }
 
 // returns v, empty, ok
